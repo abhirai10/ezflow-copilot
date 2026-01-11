@@ -1,9 +1,16 @@
-from fastapi import APIRouter, Request
-#from src.backend.api.limiter import limiter
+from fastapi import APIRouter
+from src.backend.ai.agents.analyst.agent import shared_agent
+from src.backend.schemas.user import ChatRequest
 
 
 router = APIRouter()
 
-@router.post("/", response_model=str)
-def register_user(request: Request):
-    return "Hello From Fastapi"
+@router.post("/chat", response_model=str)
+async def register_user(data: ChatRequest):
+    user_query = data.question
+
+    response = await shared_agent.get_response(user_query)
+
+    return response
+
+
