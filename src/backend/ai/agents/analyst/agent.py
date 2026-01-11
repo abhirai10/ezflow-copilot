@@ -1,8 +1,11 @@
 from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.memory import InMemorySaver 
+from langchain.agents.middleware import PIIMiddleware, HumanInTheLoopMiddleware
 from deepagents import create_deep_agent
+from src.backend.ai.guardrails.contentfilter_guardrail import ContentFilterMiddleware
+from src.backend.ai.guardrails.safety_guardrail import SafetyGuardrailMiddleware
 from src.backend.core.config import settings
-from src.backend.ai.prompts.sql_analyst import SQL_ANALYST_AGENT_INSTRUCTION
+from src.backend.ai.prompts.sql_analyst import CONTENT_FILTER_LIST, SQL_ANALYST_AGENT_INSTRUCTION
 
 class SQLAnalystAgent:
     _instance = None  # Class-level variable to store the single instance
@@ -29,16 +32,41 @@ class SQLAnalystAgent:
             model_provider=model_provider,
             base_url=base_url,
             api_key=api_key,
+            #max_tokens=500 
         )
 
         self.agent = create_deep_agent(
             model=model,
             tools=[],
             system_prompt=SQL_ANALYST_AGENT_INSTRUCTION,
+            middleware=[
+                # Layer 1: Deterministic input filter (before agent)
+                ContentFilterMiddleware(banned_keywords=CONTENT_FILTER_LIST),
+
+                # Layer 2: PII protection (before and after model)
+                PIIMiddleware(
+                    "credit_card",
+                    strategy="mask",
+                    apply_to_input=True,
+                ),
+                PIIMiddleware("email", strategy="redact", apply_to_input=True),
+                PIIMiddleware(
+                    "api_key",
+                    detector=r"sk-[a-zA-Z0-9]{32}",
+                    strategy="block",
+                    apply_to_input=True,
+                ),
+
+                # Layer 3: Human approval for sensitive tools
+                #HumanInTheLoopMiddleware(interrupt_on={"delete_database": True}),
+
+                # Layer 4: Model-based safety check (after agent) - Needs extra call for evaluation more time and cost
+                # SafetyGuardrailMiddleware(),
+            ],
             #checkpointer=InMemorySaver(),  Checkpointer requires one or more of the following 'configurable' keys: thread_id, checkpoint_ns, checkpoint_id
         )
 
-        print("🚀 Gemini Agent Initialized (This only happens ONCE)")
+        print("SQL Agent initialized")
 
     async def get_response(self, user_input: str) -> str:
         response = await self.agent.ainvoke( {"messages": [{"role": "user", "content": user_input}]})

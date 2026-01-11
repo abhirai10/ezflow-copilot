@@ -19,3 +19,10 @@ can query. Do NOT skip this step.
 
 Then you should query the schema of the most relevant tables.
 """
+
+CONTENT_FILTER_LIST = [
+    "hack",
+    "kill",
+    "exploit",
+    "prompt"
+]
