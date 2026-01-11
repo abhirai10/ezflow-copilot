@@ -1,8 +1,10 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "FastAPI 2026 Project"
-    DATABASE_URL: str = "sqlite:///./test.db"
+    PROJECT_NAME: str = "EZFlOW Copilot"
+    model_api_key: SecretStr 
+    azure_sql_connection_string: str
     
     class Config:
         env_file = ".env"

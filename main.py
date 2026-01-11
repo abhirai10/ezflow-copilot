@@ -1,9 +1,12 @@
-from os import getenv
-from dotenv import load_dotenv
-from src.backend.agents.analyst.agent import mymain
+from fastapi import FastAPI
+from src.backend.api.v1.api import api_router
+from src.backend.core.config import settings
 
+app = FastAPI(title=settings.PROJECT_NAME)
 
-if __name__ == "__main__":
-    load_dotenv()
-    print(getenv("MODEL_API_KEY"))
-    mymain()
+# Include all V1 routes
+app.include_router(api_router, prefix="/api/v1")
+
+# @app.get("/")
+# async def root():
+#     return {"message": "Welcome to the 2026 API"}
