@@ -7,6 +7,7 @@ from src.backend.ai.middleware.contentfilter_guardrail import ContentFilterMiddl
 from src.backend.ai.middleware.delete_old_memory import delete_old_messages
 #from deepagents import create_deep_agent
 #from src.backend.ai.middleware.safety_guardrail import SafetyGuardrailMiddleware
+from src.backend.ai.tools.sql_analyst_tool import get_sql_analyst_tools
 from src.backend.core.config import settings
 from src.backend.ai.prompts.prompt import CONTENT_FILTER_LIST, SQL_ANALYST_AGENT_PROMPT
 from src.backend.ai.state.customer_state import CustomAgentState
@@ -41,7 +42,7 @@ class SQLAnalystAgent:
         )
 
         db = DatabaseManager.get_shared_db()
-        tools = DatabaseManager.get_tools(model)
+        tools = get_sql_analyst_tools(db,model)
 
         system_prompt = SQL_ANALYST_AGENT_PROMPT.format(
                 dialect=db.dialect,
