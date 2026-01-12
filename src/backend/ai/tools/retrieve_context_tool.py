@@ -5,6 +5,8 @@ from pymongo import MongoClient
 from src.backend.core.config import settings
 #from langchain.embeddings import init_embeddings
 
+# To DO : Move vector store object creation to a MongodbService
+
 client = MongoClient(settings.mongodb_atlas_cluster_uri)
 db_name = "underwriting_accelerator_db"
 collection_name = "underwriting_accelerator_vectorstores"
