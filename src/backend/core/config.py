@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     langsmith_endpoint: str = Field(default="https://api.smith.langchain.com", alias="LANGSMITH_ENDPOINT")
     langsmith_api_key: SecretStr = Field(default="", alias="LANGSMITH_API_KEY")
     langsmith_project: str = Field(default="", alias="LANGSMITH_PROJECT")
+    mongodb_atlas_cluster_uri: str = Field(..., alias="MONGODB_ATLAS_CLUSTER_URI")
+    google_api_key: SecretStr = Field(..., alias="GOOGLE_API_KEY")
     
     class Config:
         env_file = ".env"

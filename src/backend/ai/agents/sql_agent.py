@@ -8,7 +8,7 @@ from src.backend.ai.middleware.delete_old_memory import delete_old_messages
 #from deepagents import create_deep_agent
 #from src.backend.ai.middleware.safety_guardrail import SafetyGuardrailMiddleware
 from src.backend.core.config import settings
-from src.backend.ai.prompts.sql_analyst import CONTENT_FILTER_LIST, SQL_ANALYST_AGENT_INSTRUCTION
+from src.backend.ai.prompts.prompt import CONTENT_FILTER_LIST, SQL_ANALYST_AGENT_PROMPT
 from src.backend.ai.state.customer_state import CustomAgentState
 from src.backend.services.sql_service import DatabaseManager
 
@@ -43,7 +43,7 @@ class SQLAnalystAgent:
         db = DatabaseManager.get_shared_db()
         tools = DatabaseManager.get_tools(model)
 
-        system_prompt = SQL_ANALYST_AGENT_INSTRUCTION.format(
+        system_prompt = SQL_ANALYST_AGENT_PROMPT.format(
                 dialect=db.dialect,
                 top_k=5,
             )
@@ -103,4 +103,4 @@ class SQLAnalystAgent:
         return response['messages'][-1].content
 
 # Use this everywhere
-shared_agent = SQLAnalystAgent()
+sql_analyst_agent = SQLAnalystAgent()
