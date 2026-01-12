@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from src.backend.ai.agents.analyst.agent import shared_agent
+from src.backend.ai.agents.sqlanalyst.agent import shared_agent
 from src.backend.schemas.user import ChatRequest
 
 
