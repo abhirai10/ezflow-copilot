@@ -2,7 +2,7 @@ import threading
 from sqlalchemy import create_engine
 from langchain_community.utilities import SQLDatabase
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from src.backend.config import Config
+from src.backend.core.config import settings
 
 class DatabaseManager:
     _db_instance = None
@@ -17,7 +17,7 @@ class DatabaseManager:
                 if cls._db_instance is None:
                     # Best practice: use pool_pre_ping for long-lived agent connections
                     engine = create_engine(
-                        Config.AZURE_SQL_URL, 
+                        settings.azure_sql_connection_string, 
                         pool_pre_ping=True, 
                         pool_size=10, 
                         max_overflow=20

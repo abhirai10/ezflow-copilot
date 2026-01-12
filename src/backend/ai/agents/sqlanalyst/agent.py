@@ -2,13 +2,15 @@ from langchain.chat_models import init_chat_model
 from langgraph.checkpoint.memory import InMemorySaver 
 from langchain.agents.middleware import PIIMiddleware, HumanInTheLoopMiddleware, ModelCallLimitMiddleware, ContextEditingMiddleware, ClearToolUsesEdit
 from langgraph.checkpoint.memory import InMemorySaver 
-from deepagents import create_deep_agent
+from langchain.agents import create_agent
 from src.backend.ai.middleware.contentfilter_guardrail import ContentFilterMiddleware
 from src.backend.ai.middleware.delete_old_memory import delete_old_messages
-from src.backend.ai.middleware.safety_guardrail import SafetyGuardrailMiddleware
+#from deepagents import create_deep_agent
+#from src.backend.ai.middleware.safety_guardrail import SafetyGuardrailMiddleware
 from src.backend.core.config import settings
 from src.backend.ai.prompts.sql_analyst import CONTENT_FILTER_LIST, SQL_ANALYST_AGENT_INSTRUCTION
 from src.backend.ai.state.customer_state import CustomAgentState
+from src.backend.services.sql_service import DatabaseManager
 
 class SQLAnalystAgent:
     _instance = None  # Class-level variable to store the single instance
@@ -38,10 +40,18 @@ class SQLAnalystAgent:
             #max_tokens=500 
         )
 
-        self.agent = create_deep_agent(
+        db = DatabaseManager.get_shared_db()
+        tools = DatabaseManager.get_tools(model)
+
+        system_prompt = SQL_ANALYST_AGENT_INSTRUCTION.format(
+                dialect=db.dialect,
+                top_k=5,
+            )
+
+        self.agent = create_agent(
             model=model,
-            tools=[],
-            system_prompt=SQL_ANALYST_AGENT_INSTRUCTION,
+            tools=tools,
+            system_prompt=system_prompt,
             middleware=[
                 ContentFilterMiddleware(banned_keywords=CONTENT_FILTER_LIST),
 
