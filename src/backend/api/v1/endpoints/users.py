@@ -8,8 +8,7 @@ router = APIRouter()
 @router.post("/chat", response_model=str)
 async def register_user(data: ChatRequest):
     user_query = data.question
-
-    response = await shared_agent.get_response(user_query)
+    response = await shared_agent.get_response(user_query, data.user_id)
 
     return response
 
