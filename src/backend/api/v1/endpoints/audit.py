@@ -5,13 +5,12 @@ from src.backend.ai.agents.anomaly_detection_agent import anomaly_detection_agen
 router = APIRouter()
 
 @router.post("/{submission_id}", response_model=AuditResponse)
-async def audit_submission(submission_id: str, submission_data: dict):
+async def audit_submission(submission_id: str):
     """
     Evaluate a submission against all audit rules.
     
     Args:
         submission_id: The ID of the submission to audit
-        submission_data: Dictionary containing submission details
     
     Returns:
         AuditResponse with detailed validation results for each rule
@@ -19,8 +18,7 @@ async def audit_submission(submission_id: str, submission_data: dict):
     try:
         # Evaluate the submission
         audit_result = await auditor_agent.evaluate_submission(
-            submission_id=submission_id,
-            submission_data=submission_data
+            submission_id=submission_id
         )
         
         return audit_result

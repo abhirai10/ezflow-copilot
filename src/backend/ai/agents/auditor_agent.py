@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import asyncio
 from datetime import datetime
+from src.backend.ai.prompts.prompt import AUDITOR_AGENT_PROMPT
 from src.backend.core.config import settings
 
 # ============================================================================
@@ -11,9 +12,9 @@ from src.backend.core.config import settings
 
 class RuleValidationResult(BaseModel):
     """Result of validating a single rule"""
-    rule_id: str
-    rule_name: str
-    rule_description: str
+    rule_id: str = Field(..., description="Rule Id")
+    rule_name: str = Field(..., description="Rule Name")
+    rule_description: str = Field(..., description="Rule Description")
     status: str = Field(..., description="Pass or Fail")
     evidence: str = Field(..., description="Evidence or reason for the status")
     details: str = Field(..., description="Detailed findings against this rule")
@@ -87,6 +88,8 @@ def mock_get_audit_rules() -> List[dict]:
             "severity": "high"
         }
     ]
+
+
 
 def mock_get_context_from_mongodb(submission_id: str, query: str) -> str:
     """
@@ -164,9 +167,9 @@ class AuditorAgent:
     
     def __initialize_agent(self):
         """Initialize the auditor agent with LLM"""
-        model_name = "nvidia/nemotron-3-nano-30b-a3b:free"
-        model_provider = "openai"
-        base_url = "https://openrouter.ai/api/v1"
+        model_name = "qwen2.5-coder"
+        model_provider = "ollama"
+        base_url = "https://waldo-unappliable-supersolemnly.ngrok-free.dev"
         api_key = settings.model_api_key.get_secret_value()
         
         self.model = init_chat_model(
@@ -189,29 +192,26 @@ class AuditorAgent:
     
     async def evaluate_submission(
         self,
-        submission_id: str,
-        submission_data: dict
+        submission_id: str
     ) -> AuditResponse:
         """
         Evaluate a submission against all audit rules in PARALLEL for faster execution
         
         Args:
             submission_id: The submission ID to audit
-            submission_data: Dictionary containing submission details
         
         Returns:
             AuditResponse with detailed validation results
         """
-        
         # Get audit rules
         rules = self._get_audit_rules()
         
         # Create tasks for all rules to run in parallel
         tasks = [
-            self._evaluate_single_rule(submission_id, submission_data, rule)
+            self._evaluate_single_rule(submission_id, rule)
             for rule in rules
         ]
-        
+
         # Execute all evaluations concurrently
         validation_results = await asyncio.gather(*tasks)
         
@@ -238,7 +238,6 @@ class AuditorAgent:
     async def _evaluate_single_rule(
         self,
         submission_id: str,
-        submission_data: dict,
         rule: dict
     ) -> RuleValidationResult:
         """
@@ -246,52 +245,30 @@ class AuditorAgent:
         
         Args:
             submission_id: The submission ID
-            submission_data: The submission data
             rule: The rule to evaluate
         
         Returns:
             RuleValidationResult for this specific rule
         """
         # Retrieve context for this rule
-        context = self._retrieve_context(submission_id, rule)
+        doc_context = self._retrieve_context(submission_id, rule)
         
-        # Build evaluation prompt
-        prompt = f"""
-        You are an expert compliance auditor evaluating a submission against specific rules.
-        
-        RULE TO VALIDATE:
-        Rule ID: {rule['rule_id']}
-        Rule Name: {rule['rule_name']}
-        Rule Description: {rule['rule_description']}
-        Severity: {rule['severity']}
-        
-        SUBMISSION DATA:
-        {self._format_submission_data(submission_data)}
-        
-        RETRIEVED CONTEXT:
-        {context}
-        
-        TASK:
-        Evaluate if the submission passes or fails this rule based on:
-        1. The submission data provided
-        2. The context retrieved from documents
-        3. The rule requirements
-        
-        RESPONSE FORMAT (be concise):
-        Status: [PASS or FAIL]
-        Evidence: [One sentence explaining why]
-        Details: [2-3 sentences with specific findings]
-        """
-        
-        # Get LLM evaluation
-        response_text = await self.model.ainvoke(prompt)
-        
+        prompt = AUDITOR_AGENT_PROMPT.format(
+            context=doc_context,
+            rule_id=rule["rule_id"],
+            rule_name=rule["rule_name"],
+            rule_description=rule["rule_description"],
+            severity=rule["severity"]
+        )
+
+        response =  await self.model.ainvoke(prompt)
+
         # Parse and return result
         return self._parse_evaluation_response(
             rule_id=rule['rule_id'],
             rule_name=rule['rule_name'],
             rule_description=rule['rule_description'],
-            response_text=response_text
+            response_text=response.content
         )
     
     def _format_submission_data(self, submission_data: dict) -> str:

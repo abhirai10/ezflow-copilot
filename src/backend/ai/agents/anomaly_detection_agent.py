@@ -139,9 +139,9 @@ class AnomalyDetectionAgent:
     
     def __initialize_agent(self):
         """Initialize the anomaly detection agent with LLM"""
-        model_name = "nvidia/nemotron-3-nano-30b-a3b:free"
-        model_provider = "openai"
-        base_url = "https://openrouter.ai/api/v1"
+        model_name = "qwen2.5-coder"
+        model_provider = "ollama"
+        base_url = "https://waldo-unappliable-supersolemnly.ngrok-free.dev"
         api_key = settings.model_api_key.get_secret_value()
         
         self.model = init_chat_model(
