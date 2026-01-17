@@ -1,158 +1,12 @@
 from langchain.chat_models import init_chat_model
-from pydantic import BaseModel, Field
-from typing import List, Optional
 import asyncio
 from datetime import datetime
 from src.backend.ai.prompts.prompt import AUDITOR_AGENT_PROMPT
 from src.backend.core.config import settings
+from src.backend.schemas.audit_response import AuditResponse, RuleValidationResult
+from src.backend.services.auditor_service import get_audit_rules_from_db
+from src.backend.services.mongo_vectorstore_service import get_document_context
 
-# ============================================================================
-# RESPONSE SCHEMAS
-# ============================================================================
-
-class RuleValidationResult(BaseModel):
-    """Result of validating a single rule"""
-    rule_id: str = Field(..., description="Rule Id")
-    rule_name: str = Field(..., description="Rule Name")
-    rule_description: str = Field(..., description="Rule Description")
-    status: str = Field(..., description="Pass or Fail")
-    evidence: str = Field(..., description="Evidence or reason for the status")
-    details: str = Field(..., description="Detailed findings against this rule")
-
-class AuditResponse(BaseModel):
-    """Complete audit response for a submission"""
-    submission_id: str
-    overall_status: str = Field(..., description="Overall Pass or Fail")
-    evaluated_at: datetime
-    total_rules: int
-    passed_rules: int
-    failed_rules: int
-    validation_results: List[RuleValidationResult]
-
-# ============================================================================
-# MOCK DATABASE & MONGODB FUNCTIONS
-# ============================================================================
-
-def mock_get_audit_rules() -> List[dict]:
-    """
-    Mock function to get audit rules from database.
-    Replace this with actual database call later.
-    """
-    return [
-        {
-            "rule_id": "R001",
-            "rule_name": "Insured Name Validation",
-            "rule_description": "Insured name must not be empty and should have valid characters",
-            "severity": "critical"
-        },
-        {
-            "rule_id": "R002",
-            "rule_name": "Date Range Validation",
-            "rule_description": "Effective date must be before expiry date",
-            "severity": "critical"
-        },
-        {
-            "rule_id": "R003",
-            "rule_name": "Sum Insured Validation",
-            "rule_description": "Total sum insured must be greater than zero",
-            "severity": "high"
-        },
-        {
-            "rule_id": "R004",
-            "rule_name": "Underwriter Assignment",
-            "rule_description": "Submission must have an assigned underwriter",
-            "severity": "critical"
-        },
-        {
-            "rule_id": "R005",
-            "rule_name": "Line of Business Validation",
-            "rule_description": "Line of business must be selected from predefined list",
-            "severity": "high"
-        },
-        {
-            "rule_id": "R006",
-            "rule_name": "Documentation Completeness",
-            "rule_description": "All required documents must be attached and verified",
-            "severity": "high"
-        },
-        {
-            "rule_id": "R007",
-            "rule_name": "Broker Validation",
-            "rule_description": "Broker must be registered in the system",
-            "severity": "medium"
-        },
-        {
-            "rule_id": "R008",
-            "rule_name": "Risk Assessment",
-            "rule_description": "Risk factors must be documented and assessed",
-            "severity": "high"
-        }
-    ]
-
-
-
-def mock_get_context_from_mongodb(submission_id: str, query: str) -> str:
-    """
-    Mock function to retrieve context from MongoDB vector store.
-    Replace this with actual MongoDB vector search call later.
-    
-    Args:
-        submission_id: The submission to retrieve context for
-        query: The query to search for in vector store
-    
-    Returns:
-        Retrieved context/documents as string
-    """
-    # Mock response based on submission_id and query
-    mock_contexts = {
-        "documentation": """
-        Documents found in submission:
-        - Policy Details: Complete with all coverages listed
-        - Insured Information: Full details provided
-        - Risk Assessment Report: Comprehensive assessment included
-        - Broker Authorization: Valid and signed
-        - Claims History: No recent claims found
-        """,
-        "risk_assessment": """
-        Risk Assessment Details:
-        - Risk Level: Medium
-        - Industry Type: Manufacturing
-        - Location Risk: Standard
-        - Previous Claims: None in last 5 years
-        - Underwriting Notes: Favorable risk profile
-        """,
-        "compliance": """
-        Compliance Check Results:
-        - KYC Status: Verified
-        - AML Check: Passed
-        - Regulatory Status: Compliant
-        - Documentation: All required documents submitted
-        """,
-        "financial": """
-        Financial Information:
-        - Sum Insured: $500,000
-        - Premium Amount: $25,000
-        - Payment Terms: Quarterly
-        - Financial Rating: A+
-        """
-    }
-    
-    # Return appropriate mock context
-    for key, context in mock_contexts.items():
-        if key in query.lower():
-            return context
-    
-    return """
-    General Context Retrieved:
-    - Submission Status: Draft
-    - Submission Date: 2026-01-13
-    - Underwriting Year: 2026
-    - Policy Type: Commercial General Liability
-    """
-
-# ============================================================================
-# AUDITOR AGENT CLASS
-# ============================================================================
 
 class AuditorAgent:
     """AI-powered auditor agent for validating submissions against rules"""
@@ -181,14 +35,11 @@ class AuditorAgent:
         
         print("Auditor Agent initialized")
     
-    def _get_audit_rules(self) -> List[dict]:
-        """Retrieve audit rules from database (mocked)"""
-        return mock_get_audit_rules()
     
-    def _retrieve_context(self, submission_id: str, rule: dict) -> str:
+    async def _retrieve_context(self, submission_id: str, rule: dict) -> str:
         """Retrieve relevant context from MongoDB (mocked)"""
         query = f"submission:{submission_id} context:document {rule.get('rule_name', '')}"
-        return mock_get_context_from_mongodb(submission_id, query)
+        return await get_document_context(submission_id, query)
     
     async def evaluate_submission(
         self,
@@ -204,7 +55,7 @@ class AuditorAgent:
             AuditResponse with detailed validation results
         """
         # Get audit rules
-        rules = self._get_audit_rules()
+        rules = get_audit_rules_from_db()
         
         # Create tasks for all rules to run in parallel
         tasks = [
@@ -251,10 +102,16 @@ class AuditorAgent:
             RuleValidationResult for this specific rule
         """
         # Retrieve context for this rule
-        doc_context = self._retrieve_context(submission_id, rule)
+        doc_context = await self._retrieve_context(submission_id, rule)
+
+        # 2. Format the context with Source names
+        formatted_context = ""
+        for i, doc in enumerate(doc_context):
+            source = doc.metadata.get('FileName', 'Unknown Source')
+            formatted_context += f"\n--- Source {i+1}: {source} ---\n{doc.page_content}\n"
         
         prompt = AUDITOR_AGENT_PROMPT.format(
-            context=doc_context,
+            context=formatted_context,
             rule_id=rule["rule_id"],
             rule_name=rule["rule_name"],
             rule_description=rule["rule_description"],

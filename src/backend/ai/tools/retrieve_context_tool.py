@@ -1,35 +1,22 @@
 from langchain.tools import tool
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_mongodb import MongoDBAtlasVectorSearch
-from pymongo import MongoClient
-from src.backend.core.config import settings
-#from langchain.embeddings import init_embeddings
+from pydantic import Field
+from src.backend.services.mongo_vectorstore_service import get_document_context
 
-# To DO : Move vector store object creation to a MongodbService
+@tool
+async def retrieve_context_tool(
+    submission_id: str = Field(..., description="The unique identifier of the submission to retrieve context for"),
+    query: str = Field(..., description="The search query describing what information you need (e.g., 'policy coverage details', 'broker information')")
+):
+    """
+    Retrieve relevant documents and context from the vector store for a given submission.
+    
+    Use this tool to fetch documents, policies, or contextual information related to a submission
+    based on semantic similarity to your query. This is essential for providing accurate answers
+    about submission details, document contents, and policy information.
+    
+    Returns:
+        Retrieved context/documents from the vector store that match the query
+    """
+    return await get_document_context("5EF63283-BCD9-4D33-8044-4AA8551025DC", query)
 
-client = MongoClient(settings.mongodb_atlas_cluster_uri)
-db_name = "underwriting_accelerator_db"
-collection_name = "underwriting_accelerator_vectorstores"
-collection = client[db_name][collection_name]
-index_name = "underwriting_accelerator-index-vectorstores"
-
-#embeddings=init_embeddings("models/gemini-embedding-001", provider="google_genai", api_key=settings.google_api_key)
-model="models/gemini-embedding-001"
-embeddings = GoogleGenerativeAIEmbeddings(model=model, api_key=settings.google_api_key)
-
-vector_store=MongoDBAtlasVectorSearch(
-            collection=collection,
-            embedding=embeddings,
-            index_name=index_name,
-            relevance_score_fn="cosine",
-        )
-
-@tool(response_format="content_and_artifact")
-def retrieve_context_tool(query: str):
-    """Retrieve information to help answer a query."""
-    retrieved_docs = vector_store.similarity_search(query, k=2)
-    serialized = "\n\n".join(
-        (f"Source: {doc.metadata}\nContent: {doc.page_content}")
-        for doc in retrieved_docs
-    )
-    return serialized, retrieved_docs
+# To Do
